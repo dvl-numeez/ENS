@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -13,6 +14,7 @@ import (
 
 type Store interface {
 	Insert(context.Context,*Event)error
+	UpdateStatus(context.Context,*Event)error
 }
 
 
@@ -45,3 +47,22 @@ func(store *MongoStore)Insert(ctx context.Context,event *Event)error{
 	}
 	return nil
 }
+
+func(store *MongoStore)UpdateStatus(ctx context.Context,event *Event)error{
+	coll:=store.collection.Collection("Event-Document")
+	filter:=bson.M{
+		"_id":event.Id,
+	}
+	update:=bson.M{
+		"$set":bson.M{
+			"status":"processed",
+		},
+	}
+	_,err:=coll.UpdateOne(ctx,filter,update)
+	if err!=nil{
+		return err
+	}
+	return nil
+
+}
+
