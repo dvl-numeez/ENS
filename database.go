@@ -15,6 +15,9 @@ import (
 type Store interface {
 	Insert(context.Context,*Event)error
 	UpdateStatus(context.Context,*Event)error
+	IncrementCount(context.Context,*Event)error
+	GetCount(context.Context,*Event)(int,error)
+	GetStatus(context.Context,*Event)(*Status,error)
 }
 
 
@@ -66,3 +69,50 @@ func(store *MongoStore)UpdateStatus(ctx context.Context,event *Event)error{
 
 }
 
+func(store *MongoStore)GetCount(ctx context.Context,event *Event)(int,error){
+	var document Event
+	coll:=store.collection.Collection("Event-Document")
+	result:=coll.FindOne(ctx,bson.M{
+		"_id":event.Id,
+	})
+	err:=result.Decode(&document)
+	if err!=nil{
+		return 0,err
+	}
+	return document.RetryCount,nil
+}
+
+func(store *MongoStore)IncrementCount(ctx context.Context,event *Event)error{
+	count,err:=store.GetCount(ctx,event)	
+	if err!=nil{
+		return err
+	}
+	if count<5{
+		coll:=store.collection.Collection("Event-Document")
+		_,err=coll.UpdateOne(ctx,bson.M{
+			"_id":event.Id,
+		},
+	bson.M{
+		"$set":bson.M{
+			"retry_count":count+1,
+		},
+	})
+	if err!=nil{
+		return err
+	}
+	}
+	return nil	
+	
+}
+
+func(store *MongoStore)GetStatus(ctx context.Context,event *Event)(*Status,error){
+	var status Status
+	coll:=store.collection.Collection("Event-Document")
+	result:=coll.FindOne(ctx,bson.M{
+		"_id":event.Id,
+	})
+	if err:=result.Decode(&status);err!=nil{
+		return nil,err
+	}
+	return &status,nil
+}

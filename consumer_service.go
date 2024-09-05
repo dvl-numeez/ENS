@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -30,16 +29,17 @@ func GetConsumerService(address string ,store Store)*ConsumerService{
 }
 
 func(service *ConsumerService)Run(){
-	router:=http.NewServeMux()
+	// router:=http.NewServeMux()
 	err:=service.OpenChannelStream(context.TODO())
 	if err!=nil{
 		log.Fatal(err)
 	}
-	fmt.Println("Consumer service is starting on port",service.address)
-	if err:=http.ListenAndServe(service.address,router);err!=nil{
-		log.Fatal(err)
-	}
+	// http.ListenAndServe(service.address,router);err!=nil{
+	// 	log.Fatal(err)
+	// }// fmt.Println("Consumer service is starting on port",service.address)
+	// if err:=http.Liste
 }
+
 
 func(service *ConsumerService) OpenChannelStream(ctx context.Context)error{
 	fmt.Println("Stream function called")
@@ -92,13 +92,13 @@ func(service *ConsumerService) Operate(event *Event)error{
 	if event.EventType=="user_registration"{
 		err:=emailMockService(event.Payload.Name,event.Payload.Email)
 		if err!=nil{
-			
-		}
+		go service.Retry(context.TODO(),event)
+		return nil
+			}
 		err=service.store.UpdateStatus(context.TODO(),event)
 		if err!=nil{
 			return err
 		}
-		
 	}
 	return nil
 }
@@ -151,9 +151,6 @@ func makeEvent(data map[string]interface{})(*Event,error){
 		return nil,err
 	}
 
-
-
-
 	return &Event{
 		Id: idString,
 		CreatedAt: createdAtTime,
@@ -166,3 +163,63 @@ func makeEvent(data map[string]interface{})(*Event,error){
 	},nil
 }
 
+
+func(service *ConsumerService) RetrySend(ctx context.Context , event *Event)error{
+	status,err:=service.store.GetStatus(ctx,event)
+	if err!=nil{
+		return err
+	}
+	if status.RetryCount==5{
+		deadEvent:=NewDeadEvent(event,"Email service is not available",time.Now())
+		if err:=service.AddToDeadEventQueue(ctx,deadEvent);err!=nil{
+			return err
+		}
+		return nil
+
+	}
+	if status.Status=="pending" && status.RetryCount<=5{
+		err:=emailMockService(event.Payload.Name,event.Payload.Email)
+		if err!=nil{
+			service.store.IncrementCount(ctx,event)
+			return err
+		}
+		err=service.store.UpdateStatus(ctx,event)
+		if err!=nil{
+			return err
+		}
+	}
+	return nil
+}
+
+func(service *ConsumerService)Retry(ctx context.Context , event *Event){
+	ticker:=time.NewTicker(1*time.Minute)
+	done:=make(chan bool)
+	go func(){
+		for {
+			select{
+			case<-done:
+				return
+			case<-ticker.C:
+				service.RetrySend(ctx,event)
+					
+			}
+		}
+	}()
+	time.Sleep(6*time.Minute)
+	ticker.Stop()
+	done<-true
+
+}
+
+
+func(service *ConsumerService)AddToDeadEventQueue(ctx context.Context,event *DeadEvent)error{
+	store,err:=GetStore(ctx)
+	if err!=nil{
+		return err
+	}
+	coll:=store.collection.Collection("Dead-Event-Queue")
+	if _,err:=coll.InsertOne(ctx,event);err!=nil{
+		return err
+	}
+	return nil
+}

@@ -37,7 +37,7 @@ func (service *ProducerService) Run() {
 	}
 }
 
-func (service *ProducerService) HandleRegister(w http.ResponseWriter, r *http.Request) error {
+func (service *ProducerService)HandleRegister(w http.ResponseWriter, r *http.Request) error {
 	if r.Method!="POST"{
 		return errors.New("invalid method")
 	}
