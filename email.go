@@ -3,20 +3,21 @@ package main
 import (
 	"errors"
 	"fmt"
-	// "math/rand"
+	"math/rand"
 )
 
 
 
 
-
+//This function mocks the behaviour of the email service
+//I have made the logic such that it will fail more rather succeed
 func emailMockService(name,email string)error{
-	// randomNumber:=rand.Intn(5)
-	// if randomNumber%2==0{
-	// 	emailMessage:=getEmailMessage(name,email)
-	// fmt.Print(emailMessage)
-	// return nil
-	// }
+	randomNumber:=rand.Intn(5)
+	if randomNumber<4{
+		emailMessage:=getEmailMessage(name,email)
+	fmt.Print(emailMessage)
+	return nil
+	}
 	
 	return errors.New("email service failed try again")
 	
