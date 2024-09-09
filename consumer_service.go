@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
+ 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -93,13 +93,14 @@ func(service *ConsumerService) Operate(event *Event)error{
 	if event.EventType=="user_registration"{
 		err:=emailMockService(event.Payload.Name,event.Payload.Email)
 		if err!=nil{
-		go func(){err:=service.Retry(context.TODO(),event)
-			if err!=nil{
-				errChan<-err
-				return
+			go func(){
+			for{
+			time.Sleep(1 *time.Minute)
+			ctx:=context.Background()
+			service.RetryEmailService(ctx,event)
 			}}()
-		return nil
-			}
+			return nil
+		}
 		err=service.store.UpdateStatus(context.TODO(),event)
 		if err!=nil{
 			return err
@@ -240,4 +241,21 @@ func(service *ConsumerService)AddToDeadEventQueue(ctx context.Context,event *Dea
 		return err
 	}
 	return nil
+}
+
+func(service *ConsumerService) RetryEmailService(ctx context.Context,event *Event){
+		if event.Status=="pending" || event.RetryCount<=5{
+			err:=emailMockService(event.Payload.Name ,event.Payload.Email)
+			if err!=nil{
+				service.store.IncrementCount(ctx,event)
+				return
+			}else{
+				service.store.UpdateStatus(ctx,event)
+			}
+		return
+		}
+		deadEvent:=NewDeadEvent(event,"Email service not available",time.Now())
+		err:=service.AddToDeadEventQueue(ctx,deadEvent)
+		fmt.Println(err)
+
 }
