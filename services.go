@@ -14,15 +14,15 @@ func Start(){
 	if err!=nil{
 		log.Fatal("Error occured : ",err)
 	}
-	service:=GetProducerService(":3000",store)
+	producerService:=GetProducerService(":3000",store)
+	consumerservice:=GetConsumerService(":3001",store)
 	wg.Add(2)
 	go func(){
-		service.Run()
+		producerService.Run()
 	}()
 
 	go func(){
-		service:=GetConsumerService(":3001",store)
-		service.Run()
+		consumerservice.Run()
 	}()
 
 	wg.Wait()

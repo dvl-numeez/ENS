@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -29,15 +30,14 @@ func GetConsumerService(address string ,store Store)*ConsumerService{
 }
 
 func(service *ConsumerService)Run(){
-	// router:=http.NewServeMux()
+	router:=http.NewServeMux()
 	err:=service.OpenChannelStream(context.TODO())
 	if err!=nil{
-		log.Fatal(err)
+		fmt.Println("Error : ",err)
 	}
-	// http.ListenAndServe(service.address,router);err!=nil{
-	// 	log.Fatal(err)
-	// }// fmt.Println("Consumer service is starting on port",service.address)
-	// if err:=http.Liste
+	if err:=http.ListenAndServe(service.address,router);err!=nil{
+		log.Fatal(err)
+	} 
 }
 
 
@@ -89,16 +89,24 @@ func(service *ConsumerService) OpenChannelStream(ctx context.Context)error{
 
 
 func(service *ConsumerService) Operate(event *Event)error{
+	errChan:=make(chan error,1)
 	if event.EventType=="user_registration"{
 		err:=emailMockService(event.Payload.Name,event.Payload.Email)
 		if err!=nil{
-		go service.Retry(context.TODO(),event)
+		go func(){err:=service.Retry(context.TODO(),event)
+			if err!=nil{
+				errChan<-err
+				return
+			}}()
 		return nil
 			}
 		err=service.store.UpdateStatus(context.TODO(),event)
 		if err!=nil{
 			return err
 		}
+	}
+	if err:=<-errChan;err!=nil{
+		return err
 	}
 	return nil
 }
@@ -180,8 +188,10 @@ func(service *ConsumerService) RetrySend(ctx context.Context , event *Event)erro
 	if status.Status=="pending" && status.RetryCount<=5{
 		err:=emailMockService(event.Payload.Name,event.Payload.Email)
 		if err!=nil{
-			service.store.IncrementCount(ctx,event)
-			return err
+			if err:=service.store.IncrementCount(ctx,event);err!=nil{
+				return err
+			}
+			return nil
 		}
 		err=service.store.UpdateStatus(ctx,event)
 		if err!=nil{
@@ -191,23 +201,31 @@ func(service *ConsumerService) RetrySend(ctx context.Context , event *Event)erro
 	return nil
 }
 
-func(service *ConsumerService)Retry(ctx context.Context , event *Event){
+func(service *ConsumerService)Retry(ctx context.Context , event *Event)error{
 	ticker:=time.NewTicker(1*time.Minute)
 	done:=make(chan bool)
+	errChan:=make(chan error)
 	go func(){
 		for {
 			select{
 			case<-done:
 				return
 			case<-ticker.C:
-				service.RetrySend(ctx,event)
+				if err:=service.RetrySend(ctx,event);err!=nil{
+					errChan<-err
+				}
 					
 			}
 		}
 	}()
+	if err:=<-errChan;err!=nil{
+		return err
+	}
 	time.Sleep(6*time.Minute)
 	ticker.Stop()
 	done<-true
+
+	return nil
 
 }
 
