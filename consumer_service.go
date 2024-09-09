@@ -244,7 +244,7 @@ func(service *ConsumerService)AddToDeadEventQueue(ctx context.Context,event *Dea
 }
 
 func(service *ConsumerService) RetryEmailService(ctx context.Context,event *Event){
-		if event.Status=="pending" || event.RetryCount<=5{
+		if event.Status=="pending" || event.RetryCount<5{
 			err:=emailMockService(event.Payload.Name ,event.Payload.Email)
 			if err!=nil{
 				service.store.IncrementCount(ctx,event)
