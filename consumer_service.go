@@ -244,6 +244,12 @@ func(service *ConsumerService)AddToDeadEventQueue(ctx context.Context,event *Dea
 }
 
 func(service *ConsumerService) RetryEmailService(ctx context.Context,event *Event){
+	status,_:=service.store.GetStatus(ctx,event)
+	if status.RetryCount>5{
+		deadEvent:=NewDeadEvent(event,"Email service not available",time.Now())
+		service.AddToDeadEventQueue(ctx,deadEvent)
+		return
+	}
 		if event.Status=="pending" || event.RetryCount<5{
 			err:=emailMockService(event.Payload.Name ,event.Payload.Email)
 			if err!=nil{
@@ -254,8 +260,7 @@ func(service *ConsumerService) RetryEmailService(ctx context.Context,event *Even
 			}
 		return
 		}
-		deadEvent:=NewDeadEvent(event,"Email service not available",time.Now())
-		err:=service.AddToDeadEventQueue(ctx,deadEvent)
-		fmt.Println(err)
+		
+		
 
 }
