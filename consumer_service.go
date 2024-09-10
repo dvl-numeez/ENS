@@ -172,65 +172,6 @@ func makeEvent(data map[string]interface{})(*Event,error){
 	},nil
 }
 
-
-func(service *ConsumerService) RetrySend(ctx context.Context , event *Event)error{
-	status,err:=service.store.GetStatus(ctx,event)
-	if err!=nil{
-		return err
-	}
-	if status.RetryCount==5{
-		deadEvent:=NewDeadEvent(event,"Email service is not available",time.Now())
-		if err:=service.AddToDeadEventQueue(ctx,deadEvent);err!=nil{
-			return err
-		}
-		return nil
-
-	}
-	if status.Status=="pending" && status.RetryCount<=5{
-		err:=emailMockService(event.Payload.Name,event.Payload.Email)
-		if err!=nil{
-			if err:=service.store.IncrementCount(ctx,event);err!=nil{
-				return err
-			}
-			return nil
-		}
-		err=service.store.UpdateStatus(ctx,event)
-		if err!=nil{
-			return err
-		}
-	}
-	return nil
-}
-
-func(service *ConsumerService)Retry(ctx context.Context , event *Event)error{
-	ticker:=time.NewTicker(1*time.Minute)
-	done:=make(chan bool)
-	errChan:=make(chan error)
-	go func(){
-		for {
-			select{
-			case<-done:
-				return
-			case<-ticker.C:
-				if err:=service.RetrySend(ctx,event);err!=nil{
-					errChan<-err
-				}
-					
-			}
-		}
-	}()
-	if err:=<-errChan;err!=nil{
-		return err
-	}
-	time.Sleep(6*time.Minute)
-	ticker.Stop()
-	done<-true
-
-	return nil
-
-}
-
-
 func(service *ConsumerService)AddToDeadEventQueue(ctx context.Context,event *DeadEvent)error{
 	store,err:=GetStore(ctx)
 	if err!=nil{
@@ -244,13 +185,19 @@ func(service *ConsumerService)AddToDeadEventQueue(ctx context.Context,event *Dea
 }
 
 func(service *ConsumerService) RetryEmailService(ctx context.Context,event *Event){
-	status,_:=service.store.GetStatus(ctx,event)
-	if status.RetryCount>5{
+	status,err:=service.store.GetStatus(ctx,event)
+	if err!=nil{
+		return 
+	}
+	if status==nil{
+		return 
+	}
+	if status.RetryCount==5{
 		deadEvent:=NewDeadEvent(event,"Email service not available",time.Now())
 		service.AddToDeadEventQueue(ctx,deadEvent)
 		return
 	}
-		if event.Status=="pending" || event.RetryCount<5{
+	if event.Status=="pending" || event.RetryCount<5{
 			err:=emailMockService(event.Payload.Name ,event.Payload.Email)
 			if err!=nil{
 				service.store.IncrementCount(ctx,event)
