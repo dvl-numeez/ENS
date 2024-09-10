@@ -3,11 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
+	"os"
 )
-
-
-
 
 //This function mocks the behaviour of the email service
 //I have made the logic such that it will fail more rather succeed
@@ -16,17 +15,16 @@ func emailMockService(name,email string)error{
 	if randomNumber<7{
 		return errors.New("email service failed try again")
 	}
-	emailMessage:=getEmailMessage(name,email)
-	fmt.Print(emailMessage)
+	getEmailMessage(os.Stdout,name,email)
 	return nil
 	
 	
 	
 }
 
-func getEmailMessage(name,email string)string{
+func getEmailMessage(writer io.Writer,name,email string){
 	companyEmail:="digivatelabs.com@gmail.com"
-	return fmt.Sprintf(`
+	fmt.Fprintf(writer,`
 *----------------------------------------------------------------------------*
  From : %s																	 
 *----------------------------------------------------------------------------*
