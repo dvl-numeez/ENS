@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"testing"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 
@@ -33,13 +31,14 @@ func TestGetCount(t *testing.T){
 	if err!=nil{
 		t.Error(err)
 	}
-	stringId:="66dfc3c972f38350735ae5e3"
-	id,err:=primitive.ObjectIDFromHex(stringId)
+	event:=NewRegisterEvent(Info{
+		Id:    287382389,
+		Name:  "Numeez",
+		Email: "numeez@gmail.com",
+	})
+	err=store.Insert(context.TODO(),event)
 	if err!=nil{
 		t.Error(err)
-	}
-	event:=&Event{
-		Id: id,
 	}
 	count,err:=store.GetCount(context.TODO(),event)
 	if err !=nil{
@@ -56,14 +55,16 @@ func TestGetStatus(t *testing.T){
 	if err!=nil{
 		t.Error(err)
 	}
-	stringId:="66dfc3c972f38350735ae5e3"
-	id,err:=primitive.ObjectIDFromHex(stringId)
+	event:=NewRegisterEvent(Info{
+		Id:    287382389,
+		Name:  "Numeez",
+		Email: "numeez@gmail.com",
+	})
+	err=store.Insert(context.TODO(),event)
 	if err!=nil{
 		t.Error(err)
 	}
-	event:=&Event{
-		Id: id,
-	}
+	
 	status,err:=store.GetStatus(context.TODO(),event)
 	if err!=nil{
 		t.Error(err)
